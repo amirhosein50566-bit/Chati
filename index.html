@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2f4bda">
+<title>چت من</title>
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#eef2f6;--panel:#fff;--ink:#17233b;--mute:#6b778c;--line:#dde3ec;--accent:#2f4bda;--theirs:#fff;--mine:#2f4bda;--hover:#f2f5fa}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1624;--panel:#17202f;--ink:#e8edf6;--mute:#8d99ad;--line:#26324a;--accent:#6d86ff;--theirs:#212d43;--mine:#4863f0;--hover:#1d2840}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0}
+body{font-family:Vazirmatn,Tahoma,system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:15px}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+#auth{min-height:100%;display:grid;place-items:center;padding:20px}
+#auth form{width:100%;max-width:360px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:24px;display:grid;gap:12px}
+#auth h1{margin:0 0 4px;font-size:24px}
+#auth p{margin:0;color:var(--mute)}
+.field{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
+.primary{background:var(--accent);color:#fff;border:0;border-radius:10px;padding:11px 16px;font-weight:600}
+.link{background:none;border:0;color:var(--accent);padding:6px}
+#err{color:#d33;min-height:1.4em;font-size:14px}
+
+#app{height:100dvh;display:grid;grid-template-columns:340px 1fr;padding-top:env(safe-area-inset-top,0)}
+#side{background:var(--panel);border-inline-end:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+.top{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--line)}
+.top b{font-size:17px}
+.search{padding:10px 12px;border-bottom:1px solid var(--line)}
+#list{overflow:auto;flex:1}
+.item{display:flex;align-items:center;gap:10px;width:100%;text-align:start;background:none;border:0;border-bottom:1px solid var(--line);padding:12px 14px}
+.item:hover,.item.on{background:var(--hover)}
+.av{width:38px;height:38px;border-radius:50%;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:600;flex:none}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--accent);margin-inline-start:auto}
+.hint{padding:16px;color:var(--mute);text-align:center;line-height:1.8}
+
+#chat{display:flex;flex-direction:column;min-height:0;min-width:0}
+#chat header{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--panel);border-bottom:1px solid var(--line)}
+#back{display:none;background:none;border:0;font-size:22px;padding:4px 8px}
+#msgs{flex:1;overflow:auto;padding:14px;display:flex;flex-direction:column;gap:6px}
+.msg{max-width:min(75%,520px);padding:8px 12px;border-radius:14px;background:var(--theirs);border:1px solid var(--line);line-height:1.7;overflow-wrap:anywhere;white-space:pre-wrap}
+.msg.mine{background:var(--mine);color:#fff;border-color:transparent;align-self:flex-start}
+.msg:not(.mine){align-self:flex-end}
+.msg small{display:block;opacity:.6;font-size:11px;margin-top:2px}
+#empty{flex:1;display:grid;place-items:center;color:var(--mute)}
+#send{display:flex;gap:8px;padding:10px 12px calc(10px + env(safe-area-inset-bottom,0));background:var(--panel);border-top:1px solid var(--line)}
+#send input{flex:1}
+
+#toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:10px}
+
+@media (max-width:760px){
+  #app{grid-template-columns:1fr}
+  #chat{display:none}
+  #app.chat-open #side{display:none}
+  #app.chat-open #chat{display:flex}
+  #back{display:block}
+}
+</style>
+</head>
+<body>
+
+<div id="auth" hidden>
+  <form id="authForm">
+    <h1>چت من</h1>
+    <p id="authSub">وارد حسابت شو</p>
+    <input class="field" id="username" placeholder="نام کاربری (انگلیسی)" autocomplete="username" hidden>
+    <input class="field" id="email" type="email" placeholder="ایمیل" autocomplete="email" required>
+    <input class="field" id="password" type="password" placeholder="رمز عبور (حداقل ۶ کاراکتر)" autocomplete="current-password" required minlength="6">
+    <div id="err" role="alert"></div>
+    <button class="primary" id="authBtn">ورود</button>
+    <button class="link" type="button" id="toggle">حساب نداری؟ ثبت‌نام کن</button>
+  </form>
+</div>
+
+<div id="app" hidden>
+  <aside id="side">
+    <div class="top"><b id="me"></b><button class="link" id="logout">خروج</button></div>
+    <div class="search">
+      <input class="field" id="q" placeholder="جستجوی نام کاربری برای گفتگوی جدید" autocomplete="off">
+      <div id="results"></div>
+    </div>
+    <div id="list"></div>
+  </aside>
+  <main id="chat">
+    <div id="empty">یک گفتگو را انتخاب کن</div>
+    <header hidden id="chead"><button id="back" aria-label="بازگشت">›</button><div class="av" id="cav"></div><b id="cname"></b></header>
+    <div id="msgs" hidden></div>
+    <form id="send" hidden><input class="field" id="text" placeholder="پیام بنویس…" autocomplete="off"><button class="primary">ارسال</button></form>
+  </main>
+</div>
+<div id="toast" hidden></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script>
+const SB_URL = 'https://hlgesydrtytvmrtlwdti.supabase.co';
+const SB_KEY = 'sb_publishable_h3Ad4LukLgXPQyr7TbJ3eg_KfkQCixz';
+const sb = supabase.createClient(SB_URL, SB_KEY);
+
+const $ = s => document.querySelector(s);
+const el = (t, c, txt) => { const e = document.createElement(t); if (c) e.className = c; if (txt != null) e.textContent = txt; return e; };
+let me = null, convs = [], cur = null, unread = new Set(), seen = new Set(), mode = 'login';
+
+function toast(t) { const x = $('#toast'); x.textContent = t; x.hidden = false; setTimeout(() => x.hidden = true, 2500); }
+function fa(msg) {
+  const m = { 'Invalid login credentials': 'ایمیل یا رمز اشتباه است.', 'User already registered': 'این ایمیل قبلاً ثبت شده است.',
+    'Database error saving new user': 'این نام کاربری قبلاً گرفته شده است.', 'Email not confirmed': 'ایمیلت هنوز تأیید نشده است.' };
+  if (/at least 6/i.test(msg)) return 'رمز باید حداقل ۶ کاراکتر باشد.';
+  return m[msg] || msg;
+}
+
+/* ---------- ورود و ثبت‌نام ---------- */
+$('#toggle').onclick = () => {
+  mode = mode === 'login' ? 'signup' : 'login';
+  const s = mode === 'signup';
+  $('#username').hidden = !s; $('#username').required = s;
+  $('#authSub').textContent = s ? 'یک حساب جدید بساز' : 'وارد حسابت شو';
+  $('#authBtn').textContent = s ? 'ثبت‌نام' : 'ورود';
+  $('#toggle').textContent = s ? 'حساب داری؟ وارد شو' : 'حساب نداری؟ ثبت‌نام کن';
+  $('#err').textContent = '';
+};
+$('#authForm').onsubmit = async e => {
+  e.preventDefault(); $('#err').textContent = '';
+  const email = $('#email').value.trim(), password = $('#password').value, username = $('#username').value.trim();
+  const r = mode === 'signup'
+    ? await sb.auth.signUp({ email, password, options: { data: { username } } })
+    : await sb.auth.signInWithPassword({ email, password });
+  if (r.error) { $('#err').textContent = fa(r.error.message); return; }
+  if (!r.data.session) { $('#err').textContent = 'ایمیل تأیید فرستاده شد. بعد از تأیید وارد شو.'; return; }
+  start(r.data.user);
+};
+$('#logout').onclick = () => sb.auth.signOut().then(() => location.reload());
+
+/* ---------- شروع برنامه ---------- */
+async function start(user) {
+  me = user; $('#auth').hidden = true; $('#app').hidden = false;
+  const { data } = await sb.from('profiles').select('username').eq('id', me.id).single();
+  $('#me').textContent = data ? data.username : '';
+  await loadConvs();
+  sb.channel('all-msgs').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, onMsg).subscribe();
+}
+
+async function loadConvs() {
+  const { data: mem } = await sb.from('conversation_members').select('conversation_id,user_id');
+  if (!mem) return;
+  const others = mem.filter(m => m.user_id !== me.id);
+  const ids = [...new Set(others.map(m => m.user_id))], names = {};
+  if (ids.length) {
+    const { data: ps } = await sb.from('profiles').select('id,username').in('id', ids);
+    (ps || []).forEach(p => names[p.id] = p.username);
+  }
+  const old = convs.map(c => c.id);
+  const fresh = others.map(m => ({ id: m.conversation_id, name: names[m.user_id] || '؟' }));
+  convs = [...convs.filter(c => fresh.some(f => f.id === c.id)), ...fresh.filter(f => !old.includes(f.id))];
+  renderList();
+}
+
+function renderList() {
+  const box = $('#list'); box.replaceChildren();
+  if (!convs.length) { box.append(el('div', 'hint', 'هنوز گفتگویی نداری. نام کاربری یک نفر را بالا جستجو کن تا گفتگو شروع شود.')); return; }
+  convs.forEach(c => {
+    const b = el('button', 'item' + (cur && cur.id === c.id ? ' on' : ''));
+    b.append(el('div', 'av', c.name[0].toUpperCase()), el('span', '', c.name));
+    if (unread.has(c.id)) b.append(el('span', 'dot'));
+    b.onclick = () => openConv(c);
+    box.append(b);
+  });
+}
+
+/* ---------- گفتگو ---------- */
+async function openConv(c) {
+  cur = c; unread.delete(c.id); renderList();
+  $('#app').classList.add('chat-open');
+  $('#empty').hidden = true; $('#chead').hidden = false; $('#msgs').hidden = false; $('#send').hidden = false;
+  $('#cname').textContent = c.name; $('#cav').textContent = c.name[0].toUpperCase();
+  const box = $('#msgs'); box.replaceChildren(); seen = new Set();
+  const { data } = await sb.from('messages').select('id,sender_id,content,created_at')
+    .eq('conversation_id', c.id).order('created_at').limit(200);
+  if (cur !== c) return;
+  (data || []).forEach(addMsg);
+  $('#text').focus();
+}
+
+function addMsg(m) {
+  if (seen.has(m.id)) return; seen.add(m.id);
+  const b = el('div', 'msg' + (m.sender_id === me.id ? ' mine' : ''));
+  const t = el('span', '', m.content); t.dir = 'auto';
+  const time = new Date(m.created_at).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' });
+  b.append(t, el('small', '', time));
+  const box = $('#msgs'); box.append(b); box.scrollTop = box.scrollHeight;
+}
+
+function onMsg(p) {
+  const m = p.new;
+  if (cur && m.conversation_id === cur.id) addMsg(m);
+  else if (m.sender_id !== me.id) unread.add(m.conversation_id);
+  const i = convs.findIndex(c => c.id === m.conversation_id);
+  if (i < 0) return loadConvs();
+  convs.unshift(...convs.splice(i, 1)); renderList();
+}
+
+$('#send').onsubmit = async e => {
+  e.preventDefault();
+  const t = $('#text').value.trim(); if (!t || !cur) return;
+  $('#text').value = '';
+  const { data, error } = await sb.from('messages').insert({ conversation_id: cur.id, content: t }).select().single();
+  if (error) { $('#text').value = t; toast('پیام ارسال نشد'); return; }
+  addMsg(data);
+};
+
+$('#back').onclick = () => { $('#app').classList.remove('chat-open'); cur = null; renderList(); };
+
+/* ---------- جستجو و گفتگوی جدید ---------- */
+let timer;
+$('#q').oninput = () => { clearTimeout(timer); timer = setTimeout(search, 300); };
+async function search() {
+  const q = $('#q').value.trim(), res = $('#results'); res.replaceChildren();
+  if (!q) return;
+  const { data } = await sb.from('profiles').select('id,username').ilike('username', '%' + q + '%').neq('id', me.id).limit(8);
+  if (!data || !data.length) { res.append(el('div', 'hint', 'کاربری پیدا نشد')); return; }
+  data.forEach(p => {
+    const b = el('button', 'item'); b.append(el('div', 'av', p.username[0].toUpperCase()), el('span', '', p.username));
+    b.onclick = () => startChat(p); res.append(b);
+  });
+}
+async function startChat(p) {
+  const { data, error } = await sb.rpc('create_direct_chat', { other_user: p.id });
+  if (error) { toast('شروع گفتگو ممکن نشد'); return; }
+  $('#q').value = ''; $('#results').replaceChildren();
+  await loadConvs();
+  const c = convs.find(x => x.id === data); if (c) openConv(c);
+}
+
+/* ---------- اجرا ---------- */
+sb.auth.getSession().then(({ data: { session } }) => session ? start(session.user) : ($('#auth').hidden = false));
+</script>
+</body>
+</html>
